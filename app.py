@@ -866,54 +866,62 @@ plt.close(fig_reg)
 st.subheader("Predict EC2 On-Demand Cost")
 
 st.write(
-    "Enter an EC2 configuration to estimate its "
-    "On-Demand hourly and monthly cost."
+    "Enter a memory and vCPU configuration to predict "
+    "the estimated EC2 On-Demand cost."
 )
 
 col1, col2 = st.columns(2)
 
 with col1:
-
     prediction_memory = st.number_input(
         "Memory (GiB)",
-        min_value=0.5,
-        max_value=float(df["Memory_GiB"].max()),
+        min_value=float(regression_data["Memory_GiB"].min()),
+        max_value=float(regression_data["Memory_GiB"].max()),
         value=4.0,
-        step=0.5
+        step=0.5,
+        key="prediction_memory"
     )
 
 with col2:
-
     prediction_vcpu = st.number_input(
         "Number of vCPUs",
-        min_value=1,
-        max_value=int(df["vCPU_Count"].max()),
+        min_value=int(regression_data["vCPU_Count"].min()),
+        max_value=int(regression_data["vCPU_Count"].max()),
         value=2,
-        step=1
+        step=1,
+        key="prediction_vcpu"
     )
 
 
 if st.button("Predict Cost"):
 
+    # Use CURRENT values entered by the user
     new_instance = pd.DataFrame({
         "Memory_GiB": [prediction_memory],
         "vCPU_Count": [prediction_vcpu]
     })
 
-    predicted_cost = model.predict(
-        new_instance
-    )[0]
+    # Make prediction
+    raw_prediction = model.predict(new_instance)[0]
 
-    predicted_monthly_cost = (
-        predicted_cost * 730
-    )
+    # EC2 cost cannot realistically be negative
+    predicted_cost = max(0.0, raw_prediction)
 
-    st.success(
-        f"Predicted Hourly On-Demand Cost: "
+    # Monthly estimate
+    predicted_monthly_cost = predicted_cost * 730
+
+    st.write("Selected Configuration:")
+    st.write(f"Memory: {prediction_memory} GiB")
+    st.write(f"vCPUs: {prediction_vcpu}")
+
+    col1, col2 = st.columns(2)
+
+    col1.metric(
+        "Predicted Hourly Cost",
         f"${predicted_cost:.4f}"
     )
 
-    st.metric(
-        "Estimated Monthly Cost",
+    col2.metric(
+        "Predicted Monthly Cost",
         f"${predicted_monthly_cost:.2f}"
     )
