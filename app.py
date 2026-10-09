@@ -929,9 +929,9 @@ if st.button("Predict Cost", key="predict_cost_button"):
     )
 
     # Predict using trained regression model
-    predicted_cost = model.predict(
-        new_instance
-    )[0]
+    predicted_cost = abs(
+    model.predict(new_instance)[0]
+)
 
     # Monthly cost
     predicted_monthly_cost = (
