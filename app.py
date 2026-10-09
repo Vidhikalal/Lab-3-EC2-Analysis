@@ -506,87 +506,133 @@ st.dataframe(
 # ------------------------------------------------------------
 # ACTIVITY PART 1 - STEP 8: INSTANCE FAMILY ANALYSIS
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# ACTIVITY PART 1 - STEP 8: INSTANCE FAMILY ANALYSIS
+# ------------------------------------------------------------
 
-st.subheader("T2 vs T3 Instance Family Analysis")
+st.subheader("Compare EC2 Instance Families")
 
+# Extract instance family from API Name
+# Example: t2.micro -> t2
+#          m5.large -> m5
 
-def filter_instance_family(family):
+df["Instance_Family"] = (
+    df["API Name"]
+    .astype(str)
+    .str.split(".")
+    .str[0]
+)
 
-    return df[
-        df["Name"]
-        .astype(str)
-        .str.startswith(family, na=False)
-    ]
+# Get all available instance families
+available_families = sorted(
+    df["Instance_Family"]
+    .dropna()
+    .unique()
+)
 
+# Let user select two families
+col1, col2 = st.columns(2)
 
-t2_instances = filter_instance_family("T2")
-t3_instances = filter_instance_family("T3")
+with col1:
+    family_1 = st.selectbox(
+        "Select First Instance Family",
+        available_families,
+        index=0
+    )
 
-st.write("T2 Instance Costs Summary")
+with col2:
+    family_2 = st.selectbox(
+        "Select Second Instance Family",
+        available_families,
+        index=1 if len(available_families) > 1 else 0
+    )
 
-t2_summary = (
-    t2_instances[activity_cost_columns]
+# Filter dataset based on selections
+family_1_instances = df[
+    df["Instance_Family"] == family_1
+]
+
+family_2_instances = df[
+    df["Instance_Family"] == family_2
+]
+
+# Summary statistics for selected families
+
+st.write(f"{family_1} Instance Costs Summary")
+
+family_1_summary = (
+    family_1_instances[activity_cost_columns]
     .describe()
 )
 
-st.dataframe(t2_summary)
+st.dataframe(family_1_summary)
 
 
-st.write("T3 Instance Costs Summary")
+st.write(f"{family_2} Instance Costs Summary")
 
-t3_summary = (
-    t3_instances[activity_cost_columns]
+family_2_summary = (
+    family_2_instances[activity_cost_columns]
     .describe()
 )
 
-st.dataframe(t3_summary)
+st.dataframe(family_2_summary)
 
-st.subheader("T2 Cost Distribution")
+# Cost distribution for first selected family
 
-fig_t2, ax = plt.subplots(figsize=(12, 6))
+st.subheader(f"{family_1} Cost Distribution")
+
+fig_family1, ax = plt.subplots(figsize=(12, 6))
 
 sns.boxplot(
-    data=t2_instances[activity_cost_columns],
+    data=family_1_instances[activity_cost_columns],
     showmeans=True,
     ax=ax
 )
 
-ax.set_title("Cost Distribution for T2 Instances")
+ax.set_title(
+    f"Cost Distribution for {family_1} Instances"
+)
+
 ax.set_ylabel("Cost (USD)")
 ax.tick_params(axis="x", rotation=45)
 
 plt.tight_layout()
 
-st.pyplot(fig_t2)
+st.pyplot(fig_family1)
 
-plt.close(fig_t2)
+plt.close(fig_family1)
 
-st.subheader("T3 Cost Distribution")
+# Cost distribution for second selected family
 
-fig_t3, ax = plt.subplots(figsize=(12, 6))
+st.subheader(f"{family_2} Cost Distribution")
+
+fig_family2, ax = plt.subplots(figsize=(12, 6))
 
 sns.boxplot(
-    data=t3_instances[activity_cost_columns],
+    data=family_2_instances[activity_cost_columns],
     showmeans=True,
     ax=ax
 )
 
-ax.set_title("Cost Distribution for T3 Instances")
+ax.set_title(
+    f"Cost Distribution for {family_2} Instances"
+)
+
 ax.set_ylabel("Cost (USD)")
 ax.tick_params(axis="x", rotation=45)
 
 plt.tight_layout()
 
-st.pyplot(fig_t3)
+st.pyplot(fig_family2)
 
-plt.close(fig_t3)
+plt.close(fig_family2)
 
 st.subheader(
-    "T2 and T3 On-Demand vs Reserved Cost"
+    f"{family_1} vs {family_2}: On-Demand vs Reserved Cost"
 )
 
 comparison = pd.concat([
-    t2_instances[
+    family_1_instances[
         [
             "Name",
             "API Name",
@@ -595,7 +641,7 @@ comparison = pd.concat([
         ]
     ],
 
-    t3_instances[
+    family_2_instances[
         [
             "Name",
             "API Name",
@@ -611,9 +657,16 @@ comparison_sorted = (
     .sort_values("On Demand_USD")
 )
 
+st.write(
+    f"10 Lowest-Cost Instances from "
+    f"{family_1} and {family_2}"
+)
+
 st.dataframe(
     comparison_sorted.head(10)
 )
+
+
 
 
 # ============================================================
@@ -807,24 +860,60 @@ st.pyplot(fig_reg)
 plt.close(fig_reg)
 
 # ------------------------------------------------------------
-# PART 2 - STEP 9: MAKE A PREDICTION
+# PART 2 - STEP 9: INTERACTIVE COST PREDICTION
 # ------------------------------------------------------------
 
-st.subheader(
-    "Predict Cost for a New EC2 Configuration"
+st.subheader("Predict EC2 On-Demand Cost")
+
+st.write(
+    "Enter an EC2 configuration to estimate its "
+    "On-Demand hourly and monthly cost."
 )
 
-new_instance = pd.DataFrame({
-    "Memory_GiB": [4],
-    "vCPU_Count": [2]
-})
+col1, col2 = st.columns(2)
 
-predicted_cost = model.predict(
-    new_instance
-)
+with col1:
 
-st.success(
-    f"Predicted On-Demand Cost for "
-    f"4 GiB memory and 2 vCPUs: "
-    f"${predicted_cost[0]:.4f} per hour"
-)
+    prediction_memory = st.number_input(
+        "Memory (GiB)",
+        min_value=0.5,
+        max_value=float(df["Memory_GiB"].max()),
+        value=4.0,
+        step=0.5
+    )
+
+with col2:
+
+    prediction_vcpu = st.number_input(
+        "Number of vCPUs",
+        min_value=1,
+        max_value=int(df["vCPU_Count"].max()),
+        value=2,
+        step=1
+    )
+
+
+if st.button("Predict Cost"):
+
+    new_instance = pd.DataFrame({
+        "Memory_GiB": [prediction_memory],
+        "vCPU_Count": [prediction_vcpu]
+    })
+
+    predicted_cost = model.predict(
+        new_instance
+    )[0]
+
+    predicted_monthly_cost = (
+        predicted_cost * 730
+    )
+
+    st.success(
+        f"Predicted Hourly On-Demand Cost: "
+        f"${predicted_cost:.4f}"
+    )
+
+    st.metric(
+        "Estimated Monthly Cost",
+        f"${predicted_monthly_cost:.2f}"
+    )
