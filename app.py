@@ -866,62 +866,88 @@ plt.close(fig_reg)
 st.subheader("Predict EC2 On-Demand Cost")
 
 st.write(
-    "Enter a memory and vCPU configuration to predict "
+    "Select a memory and vCPU configuration to predict "
     "the estimated EC2 On-Demand cost."
+)
+
+# Get ACTUAL available configurations from the dataset
+available_memory = sorted(
+    regression_data["Memory_GiB"]
+    .dropna()
+    .unique()
+)
+
+available_vcpus = sorted(
+    regression_data["vCPU_Count"]
+    .dropna()
+    .unique()
 )
 
 col1, col2 = st.columns(2)
 
 with col1:
-    prediction_memory = st.number_input(
-        "Memory (GiB)",
-        min_value=float(regression_data["Memory_GiB"].min()),
-        max_value=float(regression_data["Memory_GiB"].max()),
-        value=4.0,
-        step=0.5,
+    prediction_memory = st.selectbox(
+        "Select Memory (GiB)",
+        options=available_memory,
         key="prediction_memory"
     )
 
 with col2:
-    prediction_vcpu = st.number_input(
-        "Number of vCPUs",
-        min_value=int(regression_data["vCPU_Count"].min()),
-        max_value=int(regression_data["vCPU_Count"].max()),
-        value=2,
-        step=1,
+    prediction_vcpu = st.selectbox(
+        "Select Number of vCPUs",
+        options=available_vcpus,
         key="prediction_vcpu"
     )
 
 
-if st.button("Predict Cost"):
+# Display selected configuration
+st.write("### Selected Configuration")
 
-    # Use CURRENT values entered by the user
-    new_instance = pd.DataFrame({
-        "Memory_GiB": [prediction_memory],
-        "vCPU_Count": [prediction_vcpu]
-    })
+st.write(
+    f"Memory: **{prediction_memory} GiB**"
+)
 
-    # Make prediction
-    raw_prediction = model.predict(new_instance)[0]
+st.write(
+    f"vCPUs: **{int(prediction_vcpu)}**"
+)
 
-    # EC2 cost cannot realistically be negative
-    predicted_cost = max(0.0, raw_prediction)
 
-    # Monthly estimate
-    predicted_monthly_cost = predicted_cost * 730
+# Prediction button
+if st.button("Predict Cost", key="predict_cost_button"):
 
-    st.write("Selected Configuration:")
-    st.write(f"Memory: {prediction_memory} GiB")
-    st.write(f"vCPUs: {prediction_vcpu}")
+    # Create prediction using CURRENT selections
+    new_instance = pd.DataFrame(
+        {
+            "Memory_GiB": [
+                float(prediction_memory)
+            ],
 
-    col1, col2 = st.columns(2)
+            "vCPU_Count": [
+                float(prediction_vcpu)
+            ]
+        }
+    )
 
-    col1.metric(
+    # Predict using trained regression model
+    predicted_cost = model.predict(
+        new_instance
+    )[0]
+
+    # Monthly cost
+    predicted_monthly_cost = (
+        predicted_cost * 730
+    )
+
+    st.write("### Prediction Results")
+
+    result_col1, result_col2 = st.columns(2)
+
+    result_col1.metric(
         "Predicted Hourly Cost",
         f"${predicted_cost:.4f}"
     )
 
-    col2.metric(
+    result_col2.metric(
         "Predicted Monthly Cost",
         f"${predicted_monthly_cost:.2f}"
     )
